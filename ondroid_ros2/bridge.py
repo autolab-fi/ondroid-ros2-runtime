@@ -74,7 +74,7 @@ def main():
     buffers = {stream: bytearray() for stream in (sys.stdin.buffer, learner.stdout)}
     log_bytes = 0
     emit('ready', ros_distro=os.environ['ROS_DISTRO'])
-    deadline = time.monotonic()+80
+    deadline = time.monotonic()+(110 if Path('/input/project/run.sh').is_file() else 80)
     try:
         while rclpy.ok() and time.monotonic()<deadline:
             rclpy.spin_once(bridge, timeout_sec=.01)

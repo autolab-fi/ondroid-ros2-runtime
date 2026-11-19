@@ -116,8 +116,8 @@ class Session:
         self.lock = threading.RLock()
         self.backup = manager.root/f'{uid}-{cid}.json'
         files = decode(self.backup.read_text()) if self.backup.exists() else starter(source)
-        self.process = subprocess.Popen(['docker', 'run', '--rm', '-i', '--name', self.container,
-            '--label', 'ondroid.ros2.workspace=1', '--network', 'none', '--read-only', '--cap-drop', 'ALL',
+        self.process = subprocess.Popen(['docker', 'run', '--rm', '--init', '-i', '--name', self.container,
+            '--label', 'ondroid.ros2.workspace='+manager.identity, '--network', 'none', '--read-only', '--cap-drop', 'ALL',
             '--security-opt', 'no-new-privileges', '--user', '65534:65534', '--cpus', '1',
             '--memory', '768m', '--memory-swap', '768m', '--pids-limit', '128',
             '--log-driver', 'none', '--tmpfs', '/tmp:rw,nosuid,nodev,size=128m',
@@ -233,10 +233,11 @@ class Manager:
         self.root.mkdir(mode=0o700, exist_ok=True)
         self.root.chmod(0o700)
         self.image = os.environ['ROS2_WORKSPACE_IMAGE']
+        self.identity = os.getenv('ROS2_WORKSPACE_MANAGER', '1')
         self.sessions = {}
         self.lock = threading.RLock()
         # Never reconnect a forgotten learner process after a service restart.
-        old = subprocess.run(['docker', 'ps', '-aq', '--filter', 'label=ondroid.ros2.workspace=1'], capture_output=True, text=True, check=True)
+        old = subprocess.run(['docker', 'ps', '-aq', '--filter', 'label=ondroid.ros2.workspace='+self.identity], capture_output=True, text=True, check=True)
         for ident in old.stdout.split():
             subprocess.run(['docker', 'rm', '-f', ident], check=True, capture_output=True, timeout=15)
         threading.Thread(target=self.reap, daemon=True).start()

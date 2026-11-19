@@ -10,9 +10,9 @@ import threading
 import time
 import uuid
 try:
-    from .project import decode
+    from .project import decode, PREFIX
 except ImportError:  # Also imported by the standalone in-container practice node.
-    from project import decode
+    from project import decode, PREFIX
 
 
 class SandboxCleanupError(RuntimeError):
@@ -118,6 +118,7 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
     sample used to authorize the command. Runtime startup precedes motor arming.
     """
     started = time.monotonic()
+    startup_limit = 45 if source.startswith(PREFIX) else 15
     active_since = None
     last_command = None
     last_input = 0
@@ -125,6 +126,8 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
     commands = 0
     result = dict(status='execution_error', message='Execution ended without a result')
     try:
+        if startup_limit == 45:
+            event(dict(type='log', message='Preparing saved ROS2 project (startup limit: 45 seconds; active control: 60 seconds)', observed_at=time.time()))
         with Sandbox(source, image) as sandbox:
             while True:
                 assert_owner()
@@ -132,8 +135,8 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                 if cancelled():
                     result = dict(status='cancelled', message='Stopped by the learner')
                     break
-                if active_since is None and now-started > 15:
-                    raise TimeoutError('No velocity command received within 15 seconds of startup')
+                if active_since is None and now-started > startup_limit:
+                    raise TimeoutError(f'No velocity command received within {startup_limit} seconds of startup')
                 if active_since is not None and now-active_since > timeout:
                     result = dict(status='failed', message='Target was not reached within 60 seconds')
                     break
@@ -191,4 +194,5 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
     finally:
         stop()
     result.update(commands=commands, execution_seconds=round(time.monotonic()-(active_since or started), 3))
+    result['startup_seconds'] = round((active_since or time.monotonic())-started, 3)
     return result

@@ -49,7 +49,8 @@ Docker host and in the trusted worker/service (`ROS2_INPUT_ROOT`).
 Initial motion limits: 0–0.05 m/s, ±0.8 rad/s, fresh pose within 400 ms, command
 silence under 500 ms. The reused robot controller additionally enforces its
 600 ms deadman, wheel cap and 60 s absolute session. The bridge has an independent
-80 s process lifetime. Startup is bounded separately; queue/reset are not counted
+80 s process lifetime for single files and 110 s for projects. Startup is bounded
+at 15 s for single files and 45 s for project build/launch; queue/reset are not counted
 as active control. Losing allocation or backend contact fences commands.
 Unconfirmed robot or sandbox cleanup must keep the physical device blocked.
 
@@ -79,6 +80,9 @@ service. Its private HTTP listener on port 8081 is reachable only by the backend
 and authenticates with the existing service secret. Never publish that port.
 The backend derives ownership from course enrollment and JWT identity for every
 operation. Development sessions never claim a physical device or enter Temporal.
+`ROS2_WORKSPACE_MANAGER` identifies the containers owned by this manager (default
+`1`); startup cleanup only removes containers with that exact manager label.
+Qualification managers use a separate identity and cannot reap live sessions.
 
 One container owns one student's workspace and up to four real PTY/bash shells.
 Files live at `/workspace/ros2_ws`; `nano`, colcon and normal ROS2 CLI tools are

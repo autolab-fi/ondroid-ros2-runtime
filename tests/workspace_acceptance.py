@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ondroid_ros2.project import decode
@@ -32,6 +33,7 @@ def run_shell(session, terminal, command, expected, timeout=20):
 
 if __name__ == '__main__':
     os.environ['ROS2_WORKSPACE_IMAGE'] = sys.argv[1]
+    os.environ['ROS2_WORKSPACE_MANAGER'] = 'qualification-'+uuid.uuid4().hex
     source = Path(sys.argv[2]).read_text()
     with tempfile.TemporaryDirectory() as root:
         os.environ['ROS2_INPUT_ROOT'] = root
@@ -86,6 +88,7 @@ if __name__ == '__main__':
             config = inspected['HostConfig']
             assert config['NetworkMode'] == 'none' and not inspected['Mounts']
             assert config['Memory'] == 768*1024*1024 and config['ReadonlyRootfs']
+            assert config['Init']
             assert 'size=256m' in config['Tmpfs']['/workspace']
             # A new browser takes control; the previous connection cannot replay input.
             t1.io(dict(client='a'*32, attach=True))
