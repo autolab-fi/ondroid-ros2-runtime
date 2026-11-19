@@ -37,18 +37,31 @@ except FileNotFoundError:
 if current and (int(current[19]) != start or int(current[3]) != root):
     raise RuntimeError('Terminal process identity changed')
 
+tracked = {}
 def members():
-    found = []
+    processes = {}
     for directory in Path('/proc').iterdir():
         if not directory.name.isdigit():
             continue
         try:
             fields = (directory/'stat').read_text().rsplit(') ', 1)[1].split()
             pid = int(directory.name)
-            if int(fields[3]) == root and fields[0] != 'Z' and pid > 1:
-                found.append(pid)
+            if fields[0] != 'Z' and pid > 1:
+                processes[pid] = (int(fields[1]), int(fields[3]), int(fields[19]))
         except (FileNotFoundError, ProcessLookupError):
             pass
+    found = {pid for pid, (_, sid, tick) in processes.items()
+             if sid == root or tracked.get(pid) == tick}
+    # check-in-sim starts its learner in a separate POSIX session. Capture the
+    # process tree before stopping its parent, and retain start-time identities
+    # after descendants are reparented to the container init process.
+    while True:
+        children = {pid for pid, (parent, _, _) in processes.items() if parent in found}
+        if children <= found:
+            break
+        found.update(children)
+    for pid in found:
+        tracked[pid] = processes[pid][2]
     return found
 
 def send(sig):

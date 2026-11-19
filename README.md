@@ -124,7 +124,9 @@ terminal output/history and running processes are not durable.
 Individual terminal tabs can be closed without ending the development session.
 The server identifies the shell by its container PID and start time, then stops
 the processes belonging to that terminal's POSIX session; killing a local Docker
-CLI alone is insufficient. Other terminals and saved workspace files remain.
+CLI alone is insufficient. Descendants are included even if a helper such as
+`check-in-sim` starts its learner in another process session. Other terminals and
+saved workspace files remain.
 Save nano first: unsaved editor buffers belong to the closing process. Closing
 the last terminal keeps the workspace/simulator ready, and `+` opens a new shell.
 

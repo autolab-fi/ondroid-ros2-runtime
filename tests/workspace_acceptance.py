@@ -56,8 +56,8 @@ if __name__ == '__main__':
             except ValueError:
                 pass
             # Close a terminal with a foreground job, keeping other shells alive.
-            run_shell(first, t2, 'sleep 300\n', 'sleep 300')
-            time.sleep(.2)
+            command = "python3 -c 'import subprocess,time; from pathlib import Path; p=subprocess.Popen([\"sleep\",\"300\"],start_new_session=True); Path(\"/tmp/detached-terminal.pid\").write_text(str(p.pid)); print(\"DETACHED_READY\",flush=True); time.sleep(300)'\n"
+            run_shell(first, t2, command, 'DETACHED_READY\r\n')
             closed_id = t2.id
             try:
                 manager.handle(['sessions', first.id, 'terminals', closed_id],
@@ -68,6 +68,9 @@ if __name__ == '__main__':
             manager.handle(['sessions', first.id, 'terminals', closed_id],
                            dict(user_id=991, course_id=20, client='c'*32, close=True))
             assert closed_id not in first.view()['terminals'] and t2.process.poll() is not None
+            probe = subprocess.run(['docker', 'exec', first.container, 'python3', '-c',
+                'from pathlib import Path; p=Path("/proc/"+Path("/tmp/detached-terminal.pid").read_text()+"/stat"); assert not p.exists() or p.read_text().rsplit(") ",1)[1].split()[0]=="Z"'], capture_output=True)
+            assert probe.returncode == 0, 'Detached learner survived terminal close'
             # The host-side close confirms all live processes in that PTY session are gone.
             run_shell(first, t1, "cat src/probe.txt; printf '\\nOTHER_SHELL_OK\\n'\n", 'shared\r\nOTHER_SHELL_OK')
             replacement = first.new_terminal()['id']
