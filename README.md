@@ -121,6 +121,13 @@ so HTTP retries cannot repeat commands. A new browser connection takes ownership
 of a terminal and fences the previous connection. Files survive session restart;
 terminal output/history and running processes are not durable.
 
+Individual terminal tabs can be closed without ending the development session.
+The server identifies the shell by its container PID and start time, then stops
+the processes belonging to that terminal's POSIX session; killing a local Docker
+CLI alone is insufficient. Other terminals and saved workspace files remain.
+Save nano first: unsaved editor buffers belong to the closing process. Closing
+the last terminal keeps the workspace/simulator ready, and `+` opens a new shell.
+
 Qualification commands:
 
 ```bash

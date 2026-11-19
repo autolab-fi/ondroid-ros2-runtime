@@ -25,14 +25,16 @@ import time
 import uuid
 
 from .project import decode, encode, starter
+from .terminal_control import START_SHELL, STOP_SHELL
 
 
 class Terminal:
     def __init__(self, container):
         self.id = uuid.uuid4().hex
+        self.container = container
         self.fd, slave = pty.openpty()
         self.process = subprocess.Popen(['docker', 'exec', '-it', '-e', 'TERM=xterm-256color',
-            container, 'bash', '--noprofile', '--rcfile', '/opt/ondroid_ros2/bashrc', '-i'],
+            container, 'python3', '-c', START_SHELL, self.id],
             stdin=slave, stdout=slave, stderr=slave, start_new_session=True)
         os.close(slave)
         os.set_blocking(self.fd, False)
@@ -91,6 +93,14 @@ class Terminal:
             data = bytes(self.output[max(0, after-start) if not reset else 0:])
             return dict(id=self.id, output=base64.b64encode(data).decode(), after=self.end,
                         reset=reset, sequence=self.sequence, exited=self.process.poll() is not None)
+
+    def terminate(self):
+        # Killing the local docker CLI alone can leave its remote shell/node alive.
+        result = subprocess.run(['docker', 'exec', self.container, 'python3', '-c', STOP_SHELL, self.id],
+                                capture_output=True, text=True, timeout=5)
+        if result.returncode:
+            raise RuntimeError('Terminal could not be stopped; try again or end the session')
+        self.close()
 
     def close(self):
         if self.process.poll() is None:
@@ -296,6 +306,11 @@ class Manager:
                     raise LookupError('Terminal not found')
                 if not re.fullmatch('[a-f0-9]{32}', str(body.get('client', ''))):
                     raise ValueError('Invalid terminal connection')
+                if body.get('close') is True:
+                    terminal.terminate()
+                    del session.terminals[terminal.id]
+                    session.active = time.monotonic()
+                    return session.view()
                 if 'input' in body:
                     session.active = time.monotonic()
                 return terminal.io(body)

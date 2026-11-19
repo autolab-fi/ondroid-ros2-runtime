@@ -55,13 +55,31 @@ if __name__ == '__main__':
                 raise AssertionError('Fifth terminal was admitted')
             except ValueError:
                 pass
+            # Close a terminal with a foreground job, keeping other shells alive.
+            run_shell(first, t2, 'sleep 300\n', 'sleep 300')
+            time.sleep(.2)
+            closed_id = t2.id
+            try:
+                manager.handle(['sessions', first.id, 'terminals', closed_id],
+                               dict(user_id=992, course_id=20, client='c'*32, close=True))
+                raise AssertionError('Another student closed a terminal')
+            except LookupError:
+                pass
+            manager.handle(['sessions', first.id, 'terminals', closed_id],
+                           dict(user_id=991, course_id=20, client='c'*32, close=True))
+            assert closed_id not in first.view()['terminals'] and t2.process.poll() is not None
+            # The host-side close confirms all live processes in that PTY session are gone.
+            run_shell(first, t1, "cat src/probe.txt; printf '\\nOTHER_SHELL_OK\\n'\n", 'shared\r\nOTHER_SHELL_OK')
+            replacement = first.new_terminal()['id']
+            t2 = first.terminals[replacement]
             run_shell(first, t1, 'check-in-sim\n', 'Practice passed.', timeout=45)
             # Retrying an acknowledged input must not execute a command twice.
             reply = t1.io(dict(after=0))
             message = dict(sequence=reply['sequence'], input=base64.b64encode(b'printf x >> src/once.txt\n').decode())
             t1.io(message)
             t1.io(message)
-            run_shell(first, t2, "sleep .2; wc -c < src/once.txt\n", '1\r\n')
+            run_shell(first, t1, "printf '\\nINPUT_SETTLED\\n'\n", '\r\nINPUT_SETTLED\r\n')
+            run_shell(first, t2, "wc -c < src/once.txt\n", '1\r\n')
             run_shell(first, t2, "ln -s /etc/passwd src/unsafe; printf '\\nLINK_READY\\n'\n", '\r\nLINK_READY\r\n')
             try:
                 first.snapshot()
@@ -98,13 +116,21 @@ if __name__ == '__main__':
                 raise AssertionError('Replaced browser retained terminal control')
             except ValueError:
                 pass
+            # Closing the final tab leaves the workspace ready and files intact.
+            for tid in list(first.terminals):
+                manager.handle(['sessions', first.id, 'terminals', tid],
+                               dict(user_id=991, course_id=20, client='c'*32, close=True))
+            assert first.view()['terminals'] == [] and first.state == 'ready'
+            replacement = first.new_terminal()['id']
+            run_shell(first, first.terminals[replacement], "cat src/probe.txt; printf '\\nFILES_RETAINED\\n'\n", 'shared\r\nFILES_RETAINED')
             first.close()
             restored = manager.handle(['sessions'], dict(user_id=991, course_id=20, source=source))
             restarted = manager.sessions[restored['id']]
             sessions.append(restarted)
             assert decode(restarted.snapshot()['source'])['src/probe.txt'] == 'shared'
             print(json.dumps(dict(status='passed', terminals=4, shared_files=True,
-                user_isolation=True, persistent_sources=True, project_sandbox=result,
+                user_isolation=True, persistent_sources=True, terminal_close=True,
+                close_last_and_reopen=True, project_sandbox=result,
                 physical_queue_claimed=False)), flush=True)
         finally:
             for session in sessions:
