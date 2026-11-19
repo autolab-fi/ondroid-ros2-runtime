@@ -82,6 +82,9 @@ def reconcile_laboratories():
 
 
 def main():
+    if os.getenv('ROS2_WORKSPACE_IMAGE'):
+        from .workspaces import serve
+        threading.Thread(target=serve, daemon=True).start()
     # One simulator execution per runner bounds CPU and memory. More replicas can
     # claim disjoint durable rows using PostgreSQL SKIP LOCKED.
     threading.Thread(target=reconcile_laboratories, daemon=True).start()

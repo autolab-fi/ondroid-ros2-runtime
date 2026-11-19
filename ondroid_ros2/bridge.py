@@ -11,6 +11,7 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import rclpy
 from rclpy.node import Node
@@ -60,7 +61,10 @@ def main():
     bridge = Bridge()
     env = dict(os.environ)
     # Learner code has ordinary rclpy, no platform import or MQTT credentials.
-    learner = subprocess.Popen([sys.executable, '-u', '/input/solution.py'], stdin=subprocess.DEVNULL,
+    command = [sys.executable, '-u', '/input/solution.py']
+    if Path('/input/project/run.sh').is_file():
+        command = ['bash', '-lc', 'mkdir -p /tmp/ros2_ws && cp -r /input/project/. /tmp/ros2_ws/ && cd /tmp/ros2_ws && exec bash run.sh']
+    learner = subprocess.Popen(command, stdin=subprocess.DEVNULL,
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env,
                                start_new_session=True)
     selector = selectors.DefaultSelector()

@@ -9,6 +9,10 @@ import tempfile
 import threading
 import time
 import uuid
+try:
+    from .project import decode
+except ImportError:  # Also imported by the standalone in-container practice node.
+    from project import decode
 
 
 class SandboxCleanupError(RuntimeError):
@@ -20,16 +24,27 @@ class Sandbox:
         self.name = 'ondroid-ros2-' + uuid.uuid4().hex
         self.root = tempfile.TemporaryDirectory(prefix='ondroid-ros2-', dir=os.environ.get('ROS2_INPUT_ROOT'))
         os.chmod(self.root.name, 0o755)
-        path = Path(self.root.name) / 'solution.py'
-        path.write_text(source)
-        path.chmod(0o444)
+        files = decode(source)
+        if files is None:
+            files = {'solution.py': source}
+            base = Path(self.root.name)
+        else:
+            base = Path(self.root.name)/'project'
+        for name, content in files.items():
+            path = base/name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content)
+            path.chmod(0o444)
+        for directory in base.rglob('*'):
+            if directory.is_dir():
+                directory.chmod(0o755)
         self.events = queue.Queue(maxsize=256)
         self.process = subprocess.Popen([
             docker, 'run', '--rm', '-i', '--name', self.name,
             '--network', 'none', '--read-only', '--cap-drop', 'ALL',
             '--security-opt', 'no-new-privileges', '--user', '65534:65534',
             '--cpus', '1', '--memory', '384m', '--memory-swap', '384m',
-            '--pids-limit', '64', '--tmpfs', '/tmp:rw,nosuid,nodev,size=64m',
+            '--pids-limit', '96', '--tmpfs', '/tmp:rw,exec,nosuid,nodev,size=192m',
             '--mount', f'type=bind,source={self.root.name},target=/input,readonly',
             image], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL, text=True, bufsize=1)
