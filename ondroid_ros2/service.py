@@ -72,9 +72,19 @@ def execute(job):
             time.sleep(.5)
 
 
+def reconcile_laboratories():
+    while True:
+        try:
+            request('/internal/lab/reconcile', {})
+        except Exception:
+            pass  # HTTP runner logs availability; no code is replayed here.
+        time.sleep(2)
+
+
 def main():
     # One simulator execution per runner bounds CPU and memory. More replicas can
     # claim disjoint durable rows using PostgreSQL SKIP LOCKED.
+    threading.Thread(target=reconcile_laboratories, daemon=True).start()
     while True:
         try:
             job = request('/internal/sim/claim', {})
