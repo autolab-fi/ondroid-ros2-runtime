@@ -1,0 +1,23 @@
+name: Shared terminal acceptance
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m unittest discover -s tests -p 'test_*.py'
+      - uses: actions/checkout@v6
+        with:
+          repository: autolab-fi/metropolia-ros2-course
+          ref: 347cd9835eb4c83761c87c731cd2001c76af9430
+          path: course-fixture
+      - run: docker build -t ros2-terminal-test .
+      - run: python tests/workspace_acceptance.py ros2-terminal-test course-fixture/examples/reach_target.py
