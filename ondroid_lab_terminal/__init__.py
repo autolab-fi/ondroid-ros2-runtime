@@ -13,6 +13,7 @@ import struct
 import subprocess
 import termios
 import threading
+import time
 import uuid
 from .control import START_SHELL, STOP_SHELL
 
@@ -32,6 +33,18 @@ class Terminal:
         self.last_input = None
         self.lock = threading.Lock()
         threading.Thread(target=self.read, daemon=True).start()
+        # Docker configures the local PTY asynchronously. Input sent before its
+        # stream is attached can be flushed during terminal setup. Admit input
+        # only after the trusted rcfile/prompt has produced its first output.
+        deadline = time.monotonic() + 5
+        while not self.end and self.process.poll() is None and time.monotonic() < deadline:
+            time.sleep(.02)
+        if not self.end or self.process.poll() is not None:
+            try:
+                self.terminate()
+            except Exception:
+                self.close()
+            raise RuntimeError('Terminal shell did not become ready')
 
     def read(self):
         while self.process.poll() is None:
