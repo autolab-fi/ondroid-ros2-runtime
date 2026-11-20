@@ -3,6 +3,7 @@ ENV PYTHONUNBUFFERED=1 ROS_AUTOMATIC_DISCOVERY_RANGE=LOCALHOST RCUTILS_LOGGING_U
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends nano python3-colcon-common-extensions && rm -rf /var/lib/apt/lists/*
 COPY ondroid_ros2 /opt/ondroid_ros2
+COPY ondroid_lab_terminal /opt/ondroid_lab_terminal
 RUN printf '#!/bin/bash\nsource /opt/ros/jazzy/setup.bash\nexec python3 /opt/ondroid_ros2/practice_check.py "$@"\n' > /usr/local/bin/check-in-sim && chmod 755 /usr/local/bin/check-in-sim
 WORKDIR /tmp
 USER 65534:65534
