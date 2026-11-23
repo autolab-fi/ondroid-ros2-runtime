@@ -46,6 +46,26 @@ if __name__ == '__main__':
             second_id = first.new_terminal()['id']
             t1, t2 = list(first.terminals.values())
             run_shell(first, t2, 'ros2 node list\n', '/ondroid_bridge')
+            # Ordinary terminal execution must drive the browser telemetry without
+            # check-in-sim, a submission or a physical queue reservation.
+            initial = first.view()
+            time.sleep(.3)
+            assert first.view()['telemetry']['sequence'] > initial['telemetry']['sequence']
+            assert first.view()['telemetry']['fresh']
+            run_shell(first, t1, 'bash run.sh\n', 'Waiting for robot/pose', timeout=40)
+            deadline = time.monotonic()+8
+            while first.view()['pose']['x'] < .43 and time.monotonic() < deadline:
+                time.sleep(.1)
+            assert first.view()['pose']['x'] >= .43, first.view()
+            assert first.view()['topics']['robot/cmd_vel']['value']['linear'] > 0
+            run_shell(first, t1, '\x03', 'student@ros2:')
+            time.sleep(.7)
+            stopped = first.view()['pose']['x']
+            time.sleep(.3)
+            assert abs(first.view()['pose']['x']-stopped) < .001
+            run_shell(first, t2, "ros2 service call /simulation/reset std_srvs/srv/Empty '{}'\n", 'response:', timeout=15)
+            time.sleep(.3)
+            assert abs(first.view()['pose']['x']-.4) < .001
             run_shell(first, t1, "printf shared > src/probe.txt\n", 'student@ros2:')
             run_shell(first, t2, "cat src/probe.txt; printf '\\nSHARED_OK\\n'\n", 'shared\r\nSHARED_OK')
             for _ in range(2):
@@ -127,13 +147,25 @@ if __name__ == '__main__':
             replacement = first.new_terminal()['id']
             run_shell(first, first.terminals[replacement], "cat src/probe.txt; printf '\\nFILES_RETAINED\\n'\n", 'shared\r\nFILES_RETAINED')
             first.close()
+            sandbox = manager.handle(['sessions'], dict(user_id=991, course_id=20, lesson_id='ros_sandbox', source=source))
+            sandbox_session = manager.sessions[sandbox['id']]
+            sessions.append(sandbox_session)
+            assert sandbox['lesson_id'] == 'ros_sandbox'
+            assert 'src/probe.txt' not in decode(sandbox_session.snapshot()['source'])
+            try:
+                manager.handle(['sessions'], dict(user_id=991, course_id=20, source=source))
+                raise AssertionError('Switched an active workspace to the wrong exercise')
+            except ValueError:
+                pass
+            sandbox_session.close()
             restored = manager.handle(['sessions'], dict(user_id=991, course_id=20, source=source))
             restarted = manager.sessions[restored['id']]
             sessions.append(restarted)
             assert decode(restarted.snapshot()['source'])['src/probe.txt'] == 'shared'
             print(json.dumps(dict(status='passed', terminals=4, shared_files=True,
                 user_isolation=True, persistent_sources=True, terminal_close=True,
-                close_last_and_reopen=True, project_sandbox=result,
+                close_last_and_reopen=True, project_sandbox=result, live_terminal_simulation=True,
+                command_stop=True, reset=True, exercise_source_isolation=True,
                 physical_queue_claimed=False)), flush=True)
         finally:
             for session in sessions:

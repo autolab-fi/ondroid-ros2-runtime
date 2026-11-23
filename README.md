@@ -136,3 +136,27 @@ Qualification commands:
 python3 -m unittest discover -s tests -p 'test_*.py'
 python3 tests/workspace_acceptance.py IMAGE /path/to/course/lessons/2.6/solution.py
 ```
+
+## Live workspace and sandbox (2026-11-23)
+
+Opening a ROS development session also starts its 10 Hz simulator; neither
+`check-in-sim` nor a submission is needed to see terminal-driven movement. The
+browser polls status every 250 ms. ROS Topics defaults to the current workspace;
+selected-attempt observations are a separate source. The service timestamps
+validated practice messages on receipt and advances a host-owned pose sequence
+even at rest. Both server age and lack of sequence advancement in the browser
+mark updates interrupted after two seconds. These are practice observations, not
+trusted grading evidence.
+
+The manifest now contains `ros_sandbox` (1.1) and `reach_target` (2.6). Each has
+its own saved sources; the original reach-target backup path remains compatible.
+Only one exercise per user/course may be active. Selecting another exercise
+saves and ends the old environment before starting another. Save nano first.
+The backend selects templates from the published manifest and native valid tasks,
+never from browser-provided source. Check in lab freezes the selected task's
+project and uses the existing reach-target checker/physical queue. Free terminal
+experiments are simulation-only; a lab check runs saved files, not shell history.
+
+No physical worker, firmware, queue, LineRobot or OpenCV changes are required.
+Interactive containers remain on the server, with existing limits. Physical lab
+pose trails remain distinct from a live camera feed or video recording.

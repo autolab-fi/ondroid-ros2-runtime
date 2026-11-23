@@ -25,17 +25,25 @@ from ondroid_lab_terminal import Terminal
 
 
 class Session:
-    def __init__(self, manager, uid, cid, source):
+    def __init__(self, manager, uid, cid, source, lesson='reach_target'):
         self.id = uuid.uuid4().hex
         self.uid, self.cid, self.manager = uid, cid, manager
+        self.lesson = lesson
         self.container = 'ondroid-ros2-dev-'+self.id
         self.created = self.active = self.saved = time.monotonic()
         self.state, self.error = 'starting', ''
         self.pose = None
+        self.sequence = 0
+        self.observed_at = None
+        self.received_at = None
+        self.topics = {}
+        self.command_received_at = None
         self.trail = deque(maxlen=700)
         self.terminals = {}
         self.lock = threading.RLock()
-        self.backup = manager.root/f'{uid}-{cid}.json'
+        # Retain the original pilot backup name; other exercises have separate sources.
+        suffix = '' if lesson == 'reach_target' else '-'+lesson
+        self.backup = manager.root/f'{uid}-{cid}{suffix}.json'
         files = decode(self.backup.read_text()) if self.backup.exists() else starter(source)
         self.process = subprocess.Popen(['docker', 'run', '--rm', '--init', '-i', '--name', self.container,
             '--label', 'ondroid.ros2.workspace='+manager.identity, '--network', 'none', '--read-only', '--cap-drop', 'ALL',
@@ -70,17 +78,36 @@ class Session:
                 return
             try:
                 msg = json.loads(line)
-                with self.lock:
-                    if msg.get('type') == 'reset':
-                        self.trail.clear()
-                    elif msg.get('type') == 'pose':
-                        pose = {k: float(msg[k]) for k in ('x', 'y', 'yaw')}
-                        if not all(math.isfinite(v) and abs(v) <= 100 for v in pose.values()):
-                            continue
-                        self.pose = pose
-                        self.trail.append(self.pose)
-            except (ValueError, KeyError):
+                self.observe(msg)
+            except (ValueError, KeyError, TypeError, AttributeError):
                 continue
+
+    def observe(self, msg):
+        """Bounded practice telemetry, never evidence for the independent grader."""
+        with self.lock:
+            kind = msg.get('type')
+            if kind == 'reset':
+                self.trail.clear()
+                self.topics.pop('robot/cmd_vel', None)
+                self.command_received_at = None
+            elif kind in ('pose', 'command'):
+                keys = ('x', 'y', 'yaw') if kind == 'pose' else ('linear', 'angular')
+                value = {k: float(msg[k]) for k in keys}
+                if not all(math.isfinite(v) and abs(v) <= 100 for v in value.values()):
+                    return
+                stamp = time.time()
+                topic = 'robot/pose' if kind == 'pose' else 'robot/cmd_vel'
+                self.topics[topic] = dict(type='topic', topic=topic,
+                    message_type='geometry_msgs/msg/'+('PoseStamped' if kind == 'pose' else 'Twist'),
+                    value=value, observed_at=stamp)
+                if kind == 'pose':
+                    self.pose = value
+                    self.trail.append(value)
+                    self.sequence += 1
+                    self.received_at = time.monotonic()
+                    self.observed_at = stamp
+                else:
+                    self.command_received_at = time.monotonic()
 
     def command(self, operation, input=None):
         result = subprocess.run(['docker', 'exec', '-i', self.container, 'python3',
@@ -124,8 +151,13 @@ class Session:
 
     def view(self):
         with self.lock:
-            return dict(id=self.id, course_id=self.cid, state=self.state, message=self.error,
+            age = None if self.received_at is None else max(0, time.monotonic()-self.received_at)
+            return dict(id=self.id, course_id=self.cid, lesson_id=self.lesson, state=self.state, message=self.error,
                 terminals=list(self.terminals), pose=self.pose, trajectory=list(self.trail),
+                topics=dict(self.topics), telemetry=dict(sequence=self.sequence, observed_at=self.observed_at,
+                    age_ms=None if age is None else round(age*1000),
+                    fresh=self.state == 'ready' and age is not None and age < 2,
+                    command_active=self.command_received_at is not None and time.monotonic()-self.command_received_at < .5),
                 remaining_seconds=max(0, int(1800-(time.monotonic()-self.created))))
 
     def close(self, save=True):
@@ -184,18 +216,25 @@ class Manager:
         if type(uid) is not int or type(cid) is not int or uid < 0 or cid < 1:
             raise ValueError('Invalid owner')
         if parts == ['sessions']:
+            lesson = body.get('lesson_id', 'reach_target')
+            if not isinstance(lesson, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,63}', lesson):
+                raise ValueError('Invalid lesson')
             with self.lock:
                 existing = next((s for s in self.sessions.values() if s.uid == uid and s.cid == cid and s.state != 'ended'), None)
                 if existing:
+                    if existing.lesson != lesson:
+                        raise ValueError('End the current session before starting another exercise. Saved sources are kept separately.')
                     return existing.view()
                 if sum(s.state != 'ended' for s in self.sessions.values()) >= int(os.getenv('ROS2_WORKSPACE_LIMIT', '2')):
                     raise ValueError('Development server is full. Try again shortly')
-                session = Session(self, uid, cid, body['source'])
+                session = Session(self, uid, cid, body['source'], lesson)
                 self.sessions[session.id] = session
                 return session.view()
         session = self.sessions.get(parts[1]) if len(parts) >= 2 else None
         if not session or (session.uid, session.cid) != (uid, cid):
             raise LookupError('Session not found')
+        if 'lesson_id' in body and body['lesson_id'] != session.lesson:
+            raise LookupError('Session belongs to another exercise')
         if len(parts) == 2:
             return session.view()
         with session.lock:

@@ -23,6 +23,8 @@ class Practice(Bridge):
             self.sim.drive(v, w, None)
         except ValueError:
             self.sim.stop()
+            emit('invalid_command', message='Velocity is outside the practice limits')
+            return
         super().command(msg)
 
     def reset(self, request, response):
