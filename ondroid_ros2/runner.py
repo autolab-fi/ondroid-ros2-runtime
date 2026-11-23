@@ -130,6 +130,7 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
     require_line = bool(spec.get('line_sensor'))
     line_sequence, line_samples, line_seen = None, 0, 0
     initial_pose = None
+    line_lost_since = None
     started = time.monotonic()
     startup_limit = 45 if source.startswith(PREFIX) else 15
     active_since = None
@@ -177,6 +178,10 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                     line_sequence = line.get('sequence')
                     line_samples += 1
                     line_seen += int(reading['line_visible'])
+                    if checker == 'line_follow_v1' and active_since is not None:
+                        line_lost_since = None if reading['line_visible'] else (line_lost_since or now)
+                        if line_lost_since is not None and now-line_lost_since > 1:
+                            raise RuntimeError('The line was lost; stopped')
                     stamp = time.time()-(time.monotonic()-line['received_monotonic'])
                     sandbox.send(dict(type='line_sensors',raw=reading['raw']))
                     event(dict(type='topic',topic='robot/line_sensors',message_type='std_msgs/msg/UInt16MultiArray',value=dict(data=reading['raw']),observed_at=stamp))

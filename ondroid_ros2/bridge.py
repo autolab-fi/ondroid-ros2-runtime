@@ -16,7 +16,7 @@ from pathlib import Path
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, Twist
-from std_msgs.msg import UInt16MultiArray, Float32
+from std_msgs.msg import UInt16MultiArray, MultiArrayDimension, Float32
 
 
 def emit(kind, **values):
@@ -54,6 +54,7 @@ class Bridge(Node):
         if value.get('type') == 'line_sensors':
             from line_sensors import analyse
             msg = UInt16MultiArray()
+            msg.layout.dim = [MultiArrayDimension(label='right_to_left',size=8,stride=8)]
             msg.data = analyse(value['raw'])['raw']
             self.line.publish(msg)
             return
