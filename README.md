@@ -24,6 +24,27 @@ in simulation and on device 14. This repository contains no robot credentials.
 No separate ROS worker competes for the physical Temporal queue. ROS, Python
 and OpenCV use the same device claim and one physical activity slot.
 
+## Line-sensor demonstrations
+
+The bridge publishes `/robot/line_sensors` as `std_msgs/msg/UInt16MultiArray`:
+eight ADC channels ordered from 0 (right) to 7 (left). Personal workspaces sample
+the existing Metropolia track mask at a provisional virtual sensor bar. These
+illustrative values are not calibrated hardware measurements. Physical checks
+receive actual Octoliner readings from the optional trusted controller observer;
+no I2C access or MQTT credentials enter learner containers. `/demo/distance`
+is a student-published Float32 display topic, never grading evidence.
+
+Trusted course metadata selects the stationary sensor, pose-target or line-follow
+checker, its goal/tolerance and the optional hardware sensor requirement. A
+stationary check rejects movement before motor dispatch. Sensor-dependent checks
+stop on missing/stale telemetry; following also stops on persistent line loss.
+The original target exercise keeps its existing controller path without sensor I/O.
+
+Single-file demo packages can use the trusted `launch: python` starter preset to
+run `controller.py` directly in the installed ROS environment. The normal ament
+package files remain available for optional colcon practice. The exact saved
+`src/` and `run.sh` still form the laboratory snapshot.
+
 ## Build and verify
 
 ```sh
