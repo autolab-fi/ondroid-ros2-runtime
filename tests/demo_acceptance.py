@@ -10,7 +10,7 @@ root=Path(sys.argv[2]);manifest=json.loads((root/'manifest.json').read_text())
 for entry in manifest['lessons']:
     if entry['id']=='ros_sandbox':continue
     sim=Simulation();events=[]
-    result=run_target(source=encode(starter((root/entry['starter']).read_text())),image=sys.argv[1],
+    result=run_target(source=encode(starter((root/entry['starter']).read_text(),launch=entry.get('launch'))),image=sys.argv[1],
         sample=sim.sample,drive=sim.drive,stop=sim.stop,event=events.append,exercise=entry)
     topics={e.get('topic') for e in events if e.get('type')=='topic'}
     assert result['status']=='passed',(entry['id'],result,events[-10:])

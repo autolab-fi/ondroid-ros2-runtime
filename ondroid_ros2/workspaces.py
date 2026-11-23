@@ -45,7 +45,7 @@ class Session:
         # Retain the original pilot backup name; other exercises have separate sources.
         suffix = '' if lesson == 'reach_target' else '-'+lesson
         self.backup = manager.root/f'{uid}-{cid}{suffix}.json'
-        files = decode(self.backup.read_text()) if self.backup.exists() else starter(source)
+        files = decode(self.backup.read_text()) if self.backup.exists() else starter(source, launch=(exercise or {}).get('launch'))
         self.process = subprocess.Popen(['docker', 'run', '--rm', '--init', '-i', '--name', self.container,
             '--env','ONDROID_ROS2_EXERCISE='+json.dumps(exercise or {}),
             '--label', 'ondroid.ros2.workspace='+manager.identity, '--network', 'none', '--read-only', '--cap-drop', 'ALL',
