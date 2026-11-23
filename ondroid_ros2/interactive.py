@@ -36,6 +36,8 @@ class Practice(Bridge):
         pose = self.sim.sample()
         self.receive(dict(type='pose', **{k: pose[k] for k in ('x', 'y', 'yaw')}, observed_at=time.time()))
         emit('pose', **{k: pose[k] for k in ('x', 'y', 'yaw')})
+        self.receive(dict(type='line_sensors',raw=pose['line']['raw']))
+        emit('line_sensors',raw=pose['line']['raw'])
 
 
 def main():

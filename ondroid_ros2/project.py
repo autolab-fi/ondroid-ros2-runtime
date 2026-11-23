@@ -38,7 +38,7 @@ def decode(source):
 def starter(source):
     return validate({
         'run.sh': 'set -e\nsource /opt/ros/jazzy/setup.bash\ncolcon build --symlink-install >&2\nsource install/setup.bash\nexec ros2 run my_robot controller\n',
-        'src/my_robot/package.xml': '<?xml version="1.0"?>\n<package format="3"><name>my_robot</name><version>0.0.1</version><description>Student ROS2 project</description><maintainer email="student@example.org">Student</maintainer><license>MIT</license><buildtool_depend>ament_python</buildtool_depend><exec_depend>rclpy</exec_depend><exec_depend>geometry_msgs</exec_depend><export><build_type>ament_python</build_type></export></package>\n',
+        'src/my_robot/package.xml': '<?xml version="1.0"?>\n<package format="3"><name>my_robot</name><version>0.0.1</version><description>Student ROS2 project</description><maintainer email="student@example.org">Student</maintainer><license>MIT</license><buildtool_depend>ament_python</buildtool_depend><exec_depend>rclpy</exec_depend><exec_depend>geometry_msgs</exec_depend><exec_depend>std_msgs</exec_depend><export><build_type>ament_python</build_type></export></package>\n',
         'src/my_robot/setup.py': "from setuptools import setup\nsetup(name='my_robot', version='0.0.1', packages=['my_robot'], data_files=[('share/ament_index/resource_index/packages', ['resource/my_robot']), ('share/my_robot', ['package.xml'])], entry_points={'console_scripts': ['controller = my_robot.controller:main']})\n",
         'src/my_robot/setup.cfg': '[develop]\nscript_dir=$base/lib/my_robot\n[install]\ninstall_scripts=$base/lib/my_robot\n',
         'src/my_robot/resource/my_robot': '',

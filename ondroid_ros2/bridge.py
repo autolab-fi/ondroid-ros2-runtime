@@ -16,6 +16,7 @@ from pathlib import Path
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import PoseStamped, Twist
+from std_msgs.msg import UInt16MultiArray, Float32
 
 
 def emit(kind, **values):
@@ -27,6 +28,9 @@ class Bridge(Node):
         super().__init__('ondroid_bridge')
         self.pose = self.create_publisher(PoseStamped, 'robot/pose', 10)
         self.create_subscription(Twist, 'robot/cmd_vel', self.command, 10)
+        self.line = self.create_publisher(UInt16MultiArray, 'robot/line_sensors', 10)
+        self.create_subscription(Float32, 'demo/distance', self.demo_distance, 10)
+        self.last_demo = 0.0
         self.last_command = 0.0
 
     def command(self, msg):
@@ -40,7 +44,19 @@ class Bridge(Node):
             return
         emit('command', linear=msg.linear.x, angular=msg.angular.z)
 
+    def demo_distance(self, msg):
+        now = time.monotonic()
+        if math.isfinite(msg.data) and abs(msg.data) <= 100 and now-self.last_demo >= .09:
+            self.last_demo = now
+            emit('demo_distance', data=float(msg.data))
+
     def receive(self, value):
+        if value.get('type') == 'line_sensors':
+            from line_sensors import analyse
+            msg = UInt16MultiArray()
+            msg.data = analyse(value['raw'])['raw']
+            self.line.publish(msg)
+            return
         if value.get('type') != 'pose':
             return
         x, y, yaw = (float(value[k]) for k in ('x', 'y', 'yaw'))

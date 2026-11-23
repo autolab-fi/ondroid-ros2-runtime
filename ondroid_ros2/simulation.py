@@ -5,6 +5,10 @@ so losing a tab never leaves an unbounded simulation or robot command running.
 """
 import math
 import time
+try:
+    from .line_sensors import simulated
+except ImportError:
+    from line_sensors import simulated
 
 
 class Simulation:
@@ -28,7 +32,8 @@ class Simulation:
             remaining -= dt
         self.updated = now
         self.sequence += 1
-        return dict(x=self.x, y=self.y, yaw=self.yaw, sequence=self.sequence, received_monotonic=now)
+        return dict(x=self.x, y=self.y, yaw=self.yaw, sequence=self.sequence, received_monotonic=now,
+                    line=dict(**simulated(self.x,self.y,self.yaw),sequence=self.sequence,received_monotonic=now))
 
     def drive(self, linear, angular, pose):
         self.sample()

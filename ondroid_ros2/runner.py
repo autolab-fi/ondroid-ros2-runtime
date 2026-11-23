@@ -3,6 +3,10 @@ import json
 import math
 import os
 from pathlib import Path
+try:
+    from .line_sensors import analyse
+except ImportError:
+    from line_sensors import analyse
 import queue
 import subprocess
 import tempfile
@@ -111,17 +115,27 @@ def velocity(value):
 
 
 def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: False,
-               timeout=60, target=(.60, -.185), tolerance=.03, assert_owner=lambda: None):
+               timeout=60, target=(.60, -.185), tolerance=.03, assert_owner=lambda: None, exercise=None):
     """Grade trusted observations, never a pose/result published by the learner.
 
     sample returns {x,y,yaw,sequence,received_monotonic}; drive receives the same
     sample used to authorize the command. Runtime startup precedes motor arming.
     """
+    spec = exercise or {}
+    checker = spec.get('checker', 'reach_target_v1')
+    if checker not in ('reach_target_v1','line_sensor_observe_v1','line_follow_v1'):
+        raise ValueError('Unknown ROS exercise checker')
+    target = spec.get('target') or target
+    tolerance = spec.get('tolerance', tolerance)
+    require_line = bool(spec.get('line_sensor'))
+    line_sequence, line_samples, line_seen = None, 0, 0
+    initial_pose = None
     started = time.monotonic()
     startup_limit = 45 if source.startswith(PREFIX) else 15
     active_since = None
     last_command = None
     last_input = 0
+    last_line_input = 0
     reached_since = None
     commands = 0
     result = dict(status='execution_error', message='Execution ended without a result')
@@ -148,6 +162,24 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                     continue
                 if now - pose['received_monotonic'] > .4:
                     raise RuntimeError('Robot pose is stale; stopped')
+                if initial_pose is None:
+                    initial_pose = (pose['x'],pose['y'])
+                line = pose.get('line')
+                if require_line and active_since is not None:
+                    if line is None:
+                        if now-active_since > 2:
+                            raise RuntimeError('No physical line sensor telemetry; stopped')
+                    elif now-line['received_monotonic'] > .5:
+                        raise RuntimeError('Line sensor telemetry is stale; stopped')
+                if line is not None and now-line['received_monotonic'] <= .5 and line.get('sequence') != line_sequence and now-last_line_input >= .1:
+                    reading = analyse(line['raw'])
+                    last_line_input = now
+                    line_sequence = line.get('sequence')
+                    line_samples += 1
+                    line_seen += int(reading['line_visible'])
+                    stamp = time.time()-(time.monotonic()-line['received_monotonic'])
+                    sandbox.send(dict(type='line_sensors',raw=reading['raw']))
+                    event(dict(type='topic',topic='robot/line_sensors',message_type='std_msgs/msg/UInt16MultiArray',value=dict(data=reading['raw']),observed_at=stamp))
                 if now - last_input >= .1:
                     stamp = time.time() - (time.monotonic()-pose['received_monotonic'])
                     sandbox.send(dict(type='pose', x=pose['x'], y=pose['y'], yaw=pose['yaw'], observed_at=stamp))
@@ -162,6 +194,8 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                     kind = message.get('type')
                     if kind == 'command':
                         linear, angular = velocity(message)
+                        if checker == 'line_sensor_observe_v1' and (abs(linear)>.001 or abs(angular)>.03):
+                            raise ValueError('This sensor observation demo must keep the robot stopped')
                         drive(linear, angular, pose)
                         now = time.monotonic()  # First drive may arm the robot asynchronously.
                         active_since = active_since or now
@@ -169,18 +203,32 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                         commands += 1
                         event(dict(type='topic', topic='robot/cmd_vel', message_type='geometry_msgs/msg/Twist',
                                    value=dict(linear=linear, angular=angular), observed_at=time.time()))
+                    elif kind == 'demo_distance':
+                        value = float(message.get('data'))
+                        if not math.isfinite(value) or abs(value)>100:
+                            raise ValueError('Invalid demo distance')
+                        event(dict(type='topic',topic='demo/distance',message_type='std_msgs/msg/Float32',value=dict(data=value),observed_at=time.time()))
                     elif kind == 'log':
                         event(dict(type='log', message=str(message.get('message', ''))[:2048], observed_at=time.time()))
                     elif kind in ('exit', 'closed', 'error', 'invalid_command'):
                         raise RuntimeError(str(message.get('message') or f"Learner program ended ({message.get('code', kind)})"))
                 if last_command is not None and now-last_command > .5:
                     raise RuntimeError('No fresh velocity command for 500 ms; stopped')
+                if checker == 'line_sensor_observe_v1':
+                    if math.hypot(pose['x']-initial_pose[0],pose['y']-initial_pose[1]) > .015:
+                        raise RuntimeError('Robot moved during stationary sensor observation')
+                    if active_since is not None and now-active_since >= 3 and line_samples >= 20:
+                        result = dict(status='passed',message='Received line sensors while the robot remained stopped')
+                        break
+                    continue
                 distance = math.hypot(pose['x']-target[0], pose['y']-target[1])
                 # A successful target must be held with explicit zero commands.
                 if active_since and distance <= tolerance and message and message.get('type') == 'command':
                     if abs(float(message['linear'])) < .001 and abs(float(message['angular'])) < .03:
                         reached_since = reached_since or now
                         if now-reached_since >= .5:
+                            if checker == 'line_follow_v1' and (line_samples<20 or line_seen/line_samples<.65):
+                                raise RuntimeError('Insufficient trusted line observations while following the track')
                             result = dict(status='passed', message='Reached the target and stopped', distance_to_target=distance)
                             break
                     else:
@@ -193,6 +241,6 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
         result = dict(status='execution_error', message=str(error)[:500])
     finally:
         stop()
-    result.update(commands=commands, execution_seconds=round(time.monotonic()-(active_since or started), 3))
+    result.update(line_samples=line_samples, line_visible_samples=line_seen, commands=commands, execution_seconds=round(time.monotonic()-(active_since or started), 3))
     result['startup_seconds'] = round((active_since or time.monotonic())-started, 3)
     return result

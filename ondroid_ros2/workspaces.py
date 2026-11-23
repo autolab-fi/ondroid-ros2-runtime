@@ -19,13 +19,14 @@ import time
 import uuid
 
 from .project import decode, encode, starter
+from .line_sensors import analyse
 from ondroid_lab_terminal import Terminal
 
 
 
 
 class Session:
-    def __init__(self, manager, uid, cid, source, lesson='reach_target'):
+    def __init__(self, manager, uid, cid, source, lesson='reach_target', exercise=None):
         self.id = uuid.uuid4().hex
         self.uid, self.cid, self.manager = uid, cid, manager
         self.lesson = lesson
@@ -46,6 +47,7 @@ class Session:
         self.backup = manager.root/f'{uid}-{cid}{suffix}.json'
         files = decode(self.backup.read_text()) if self.backup.exists() else starter(source)
         self.process = subprocess.Popen(['docker', 'run', '--rm', '--init', '-i', '--name', self.container,
+            '--env','ONDROID_ROS2_EXERCISE='+json.dumps(exercise or {}),
             '--label', 'ondroid.ros2.workspace='+manager.identity, '--network', 'none', '--read-only', '--cap-drop', 'ALL',
             '--security-opt', 'no-new-privileges', '--user', '65534:65534', '--cpus', '1',
             '--memory', '768m', '--memory-swap', '768m', '--pids-limit', '128',
@@ -90,6 +92,15 @@ class Session:
                 self.trail.clear()
                 self.topics.pop('robot/cmd_vel', None)
                 self.command_received_at = None
+            elif kind in ('line_sensors', 'demo_distance'):
+                value = analyse(msg['raw']) if kind == 'line_sensors' else dict(data=float(msg['data']))
+                if kind == 'demo_distance' and not math.isfinite(value['data']):
+                    return
+                if kind == 'line_sensors':value=dict(data=value['raw'])
+                topic = 'robot/line_sensors' if kind == 'line_sensors' else 'demo/distance'
+                self.topics[topic] = dict(type='topic',topic=topic,
+                    message_type='std_msgs/msg/'+('UInt16MultiArray' if kind == 'line_sensors' else 'Float32'),
+                    value=value,observed_at=time.time())
             elif kind in ('pose', 'command'):
                 keys = ('x', 'y', 'yaw') if kind == 'pose' else ('linear', 'angular')
                 value = {k: float(msg[k]) for k in keys}
@@ -227,7 +238,7 @@ class Manager:
                     return existing.view()
                 if sum(s.state != 'ended' for s in self.sessions.values()) >= int(os.getenv('ROS2_WORKSPACE_LIMIT', '2')):
                     raise ValueError('Development server is full. Try again shortly')
-                session = Session(self, uid, cid, body['source'], lesson)
+                session = Session(self, uid, cid, body['source'], lesson, body.get('exercise'))
                 self.sessions[session.id] = session
                 return session.view()
         session = self.sessions.get(parts[1]) if len(parts) >= 2 else None

@@ -55,8 +55,8 @@ def execute(job):
     try:
         result = run_target(source=job['source'], image=job['release']['runtime_image'],
                             sample=sim.sample, drive=sim.drive, stop=sim.stop, event=event,
-                            cancelled=cancelled.is_set, target=job['release']['target'],
-                            tolerance=job['release']['tolerance'])
+                            cancelled=cancelled.is_set, target=job['release'].get('target') or [.6,-.185],
+                            tolerance=job['release'].get('tolerance',.03), exercise=job['release'])
     finally:
         done.set()
         reporter.join(timeout=6)
