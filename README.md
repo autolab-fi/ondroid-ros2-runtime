@@ -45,6 +45,15 @@ run `controller.py` directly in the installed ROS environment. The normal ament
 package files remain available for optional colcon practice. The exact saved
 `src/` and `run.sh` still form the laboratory snapshot.
 
+Timed line-follow profiles can select `duration_seconds` (up to 55), keeping
+headroom inside the existing 60-second active limit. The shared pure-Python
+progress evaluator requires sustained forward commands, at least 0.45 m observed
+travel and 0.25 m maximum displacement before a held stop can pass. Camera jitter
+below the travel anchor does not accumulate. Practice uses the same criteria;
+physical evidence still comes only from host observations. Trusted old-reference
+hashes can upgrade an exact unedited saved controller when a new session starts;
+edited sources are retained.
+
 ## Build and verify
 
 ```sh
