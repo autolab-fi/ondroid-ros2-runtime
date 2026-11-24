@@ -46,6 +46,11 @@ class Session:
         suffix = '' if lesson == 'reach_target' else '-'+lesson
         self.backup = manager.root/f'{uid}-{cid}{suffix}.json'
         files = decode(self.backup.read_text()) if self.backup.exists() else starter(source, launch=(exercise or {}).get('launch'))
+        # Upgrade only an exact, unmodified reference; preserve all learner edits.
+        controller = 'src/my_robot/my_robot/controller.py'
+        prior = (exercise or {}).get('previous_starter_sha256', [])
+        if hashlib.sha256(files.get(controller, '').encode()).hexdigest() in prior:
+            files[controller] = source
         self.process = subprocess.Popen(['docker', 'run', '--rm', '--init', '-i', '--name', self.container,
             '--env','ONDROID_ROS2_EXERCISE='+json.dumps(exercise or {}),
             '--label', 'ondroid.ros2.workspace='+manager.identity, '--network', 'none', '--read-only', '--cap-drop', 'ALL',

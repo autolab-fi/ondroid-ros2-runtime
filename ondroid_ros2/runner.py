@@ -5,8 +5,10 @@ import os
 from pathlib import Path
 try:
     from .line_sensors import analyse
+    from .line_follow import LineFollowProgress
 except ImportError:
     from line_sensors import analyse
+    from line_follow import LineFollowProgress
 import queue
 import subprocess
 import tempfile
@@ -128,6 +130,8 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
     target = spec.get('target') or target
     tolerance = spec.get('tolerance', tolerance)
     require_line = bool(spec.get('line_sensor'))
+    timed = LineFollowProgress(spec['duration_seconds']) if checker == 'line_follow_v1' and spec.get('duration_seconds') else None
+    last_linear = 0.0
     line_sequence, line_samples, line_seen = None, 0, 0
     initial_pose = None
     line_lost_since = None
@@ -153,7 +157,7 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                 if active_since is None and now-started > startup_limit:
                     raise TimeoutError(f'No velocity command received within {startup_limit} seconds of startup')
                 if active_since is not None and now-active_since > timeout:
-                    result = dict(status='failed', message='Target was not reached within 60 seconds')
+                    result = dict(status='failed', message='Line-following requirements were not completed within 60 seconds' if timed else 'Target was not reached within 60 seconds')
                     break
                 pose = sample()
                 if pose is None:
@@ -199,6 +203,7 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                     kind = message.get('type')
                     if kind == 'command':
                         linear, angular = velocity(message)
+                        last_linear = linear
                         if checker == 'line_sensor_observe_v1' and (abs(linear)>.001 or abs(angular)>.03):
                             raise ValueError('This sensor observation demo must keep the robot stopped')
                         drive(linear, angular, pose)
@@ -226,19 +231,22 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                         result = dict(status='passed',message='Received line sensors while the robot remained stopped')
                         break
                     continue
+                if timed and active_since is not None:
+                    timed.observe(now, pose['x'], pose['y'], last_linear)
                 distance = math.hypot(pose['x']-target[0], pose['y']-target[1])
                 # A successful target must be held with explicit zero commands.
-                if active_since and distance <= tolerance and message and message.get('type') == 'command':
+                eligible = timed.ready(now) if timed else distance <= tolerance
+                if active_since and eligible and message and message.get('type') == 'command':
                     if abs(float(message['linear'])) < .001 and abs(float(message['angular'])) < .03:
                         reached_since = reached_since or now
                         if now-reached_since >= .5:
                             if checker == 'line_follow_v1' and (line_samples<20 or line_seen/line_samples<.65):
                                 raise RuntimeError('Insufficient trusted line observations while following the track')
-                            result = dict(status='passed', message='Reached the target and stopped', distance_to_target=distance)
+                            result = dict(status='passed', message=f'Followed the line for {timed.duration:g} seconds and stopped', **timed.metrics()) if timed else dict(status='passed', message='Reached the target and stopped', distance_to_target=distance)
                             break
                     else:
                         reached_since = None
-                elif distance > tolerance:
+                elif not eligible:
                     reached_since = None
     except SandboxCleanupError:
         raise
@@ -246,6 +254,8 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
         result = dict(status='execution_error', message=str(error)[:500])
     finally:
         stop()
+    if timed:
+        result.update(timed.metrics())
     result.update(line_samples=line_samples, line_visible_samples=line_seen, commands=commands, execution_seconds=round(time.monotonic()-(active_since or started), 3))
     result['startup_seconds'] = round((active_since or time.monotonic())-started, 3)
     return result

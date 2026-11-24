@@ -11,6 +11,7 @@ from geometry_msgs.msg import PoseStamped, Twist
 from std_srvs.srv import Empty
 from std_msgs.msg import UInt16MultiArray
 from line_sensors import analyse
+from line_follow import LineFollowProgress
 
 
 def main():
@@ -18,6 +19,7 @@ def main():
     checker = spec.get('checker','reach_target_v1')
     target = spec.get('target') or [.6,-.185]
     tolerance = spec.get('tolerance',.03)
+    timed = LineFollowProgress(spec['duration_seconds']) if checker == 'line_follow_v1' and spec.get('duration_seconds') else None
     line = {'count':0,'seen':0,'at':0.}
     initial = [None]
     rclpy.init()
@@ -32,6 +34,7 @@ def main():
     state = {'pose': None, 'command': None, 'command_at': 0.}
     def pose(msg):
         state['pose'] = (msg.pose.position.x, msg.pose.position.y)
+        state['pose_at'] = time.monotonic()
         if initial[0] is None:initial[0]=state['pose']
     def command(msg):
         state.update(command=msg, command_at=time.monotonic())
@@ -59,6 +62,10 @@ def main():
                 good = (p and initial[0] and c and line['count']>=20 and time.monotonic()-line['at']<.5
                     and math.hypot(p[0]-initial[0][0],p[1]-initial[0][1])<.015
                     and abs(c.linear.x)<.001 and abs(c.angular.z)<.03)
+            if timed and p and c:
+                timed.observe(time.monotonic(), *p, c.linear.x)
+                good = (timed.ready(time.monotonic()) and time.monotonic()-state.get('pose_at',0)<.4
+                    and time.monotonic()-state['command_at']<.5 and abs(c.linear.x)<.001 and abs(c.angular.z)<.03)
             if checker == 'line_follow_v1':
                 good = good and line['count']>=20 and line['seen']/line['count']>=.65
             hold = (hold or time.monotonic()) if good else None
