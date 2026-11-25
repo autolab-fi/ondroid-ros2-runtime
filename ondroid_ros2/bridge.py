@@ -32,6 +32,8 @@ class Bridge(Node):
         self.create_subscription(Float32, 'demo/distance', self.demo_distance, 10)
         self.last_demo = 0.0
         self.last_command = 0.0
+        from inspector import Inspector
+        self.inspector = Inspector(self, emit)
 
     def command(self, msg):
         # Bound traffic even if a learner publishes faster than the course needs.

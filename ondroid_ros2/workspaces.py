@@ -20,6 +20,7 @@ import uuid
 
 from .project import decode, encode, starter
 from .line_sensors import analyse
+from .inspector_schema import valid_snapshot
 from ondroid_lab_terminal import Terminal
 
 
@@ -38,6 +39,7 @@ class Session:
         self.observed_at = None
         self.received_at = None
         self.topics = {}
+        self.inspector = None
         self.command_received_at = None
         self.trail = deque(maxlen=700)
         self.terminals = {}
@@ -93,7 +95,9 @@ class Session:
         """Bounded practice telemetry, never evidence for the independent grader."""
         with self.lock:
             kind = msg.get('type')
-            if kind == 'reset':
+            if kind == 'inspector':
+                self.inspector = valid_snapshot(msg['snapshot'])
+            elif kind == 'reset':
                 self.trail.clear()
                 self.topics.pop('robot/cmd_vel', None)
                 self.command_received_at = None
@@ -170,7 +174,7 @@ class Session:
             age = None if self.received_at is None else max(0, time.monotonic()-self.received_at)
             return dict(id=self.id, course_id=self.cid, lesson_id=self.lesson, state=self.state, message=self.error,
                 terminals=list(self.terminals), pose=self.pose, trajectory=list(self.trail),
-                topics=dict(self.topics), telemetry=dict(sequence=self.sequence, observed_at=self.observed_at,
+                inspector=getattr(self,'inspector',None), topics=dict(self.topics), telemetry=dict(sequence=self.sequence, observed_at=self.observed_at,
                     age_ms=None if age is None else round(age*1000),
                     fresh=self.state == 'ready' and age is not None and age < 2,
                     command_active=self.command_received_at is not None and time.monotonic()-self.command_received_at < .5),

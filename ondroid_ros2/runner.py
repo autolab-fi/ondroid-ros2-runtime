@@ -218,6 +218,16 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
                         if not math.isfinite(value) or abs(value)>100:
                             raise ValueError('Invalid demo distance')
                         event(dict(type='topic',topic='demo/distance',message_type='std_msgs/msg/Float32',value=dict(data=value),observed_at=time.time()))
+                    elif kind == 'inspector':
+                        try:
+                            from .inspector_schema import valid_snapshot
+                        except ImportError:
+                            from inspector_schema import valid_snapshot
+                        try:
+                            snapshot=valid_snapshot(message.get('snapshot'))
+                        except (ValueError,TypeError):
+                            continue
+                        event(dict(type='inspector',snapshot=snapshot))
                     elif kind == 'log':
                         event(dict(type='log', message=str(message.get('message', ''))[:2048], observed_at=time.time()))
                     elif kind in ('exit', 'closed', 'error', 'invalid_command'):
