@@ -54,13 +54,12 @@ def run_learning(*,source,image,event,cancelled=lambda:False,exercise=None,sandb
         nodes=(graph or {}).get('nodes',[])
         named=next((n for n in nodes if n['name']=='/'+spec.get('node','')),None)
         if kind in ('publisher','cli_publisher'):
-            topic=next((t for t in (graph or {}).get('topics',[]) if t['name']=='/learning/temperature'),{})
             def advertises(n):
                 return any(p['name']=='/learning/temperature' and p['message_type']=='std_msgs/msg/Float32' for p in n['publishers'])
             has_node=bool(named and advertises(named)) if kind=='publisher' else any(n['name'].startswith('/_ros2cli_') and advertises(n) for n in nodes)
             good=[v for t,v in values if abs(v-20.5)<.001]
             return [dict(label='Publisher node is discovered',passed=has_node,detail=f"Expected /{spec.get('node')}" if kind=='publisher' and not has_node else ''),
-                    dict(label='/learning/temperature has type std_msgs/msg/Float32 and a publisher',passed=topic.get('message_type')=='std_msgs/msg/Float32' and topic.get('publishers',0)>0),
+                    dict(label='/learning/temperature has type std_msgs/msg/Float32 and a publisher',passed=any(advertises(n) for n in nodes)),
                     dict(label='At least three messages contain 20.5',passed=len(good)>=3 and bool(values) and values[-1][0]-values[0][0]>=.25,detail=f'Received {len(good)} matching messages.')]
         pubs={p['name'] for p in (named or {}).get('publishers',[])}
         subs={p['name'] for p in (named or {}).get('subscriptions',[])}

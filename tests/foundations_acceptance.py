@@ -24,10 +24,12 @@ for entry in entries:
  print(json.dumps(dict(lesson=entry['id'],**result)),flush=True)
 for id,alter,label in [
  ('write_publisher',lambda s:s.replace('message.data = 20.5','message.data = 0.0'),'wrong_temperature'),
+ ('write_publisher',lambda s:s.replace('Float32','Float64'),'wrong_message_type'),
  ('write_subscriber',lambda s:s.replace('message.data * 2','14'),'constant_response'),
  ('write_publisher',lambda s:"print('PASS: all criteria passed')\n",'fake_stdout')]:
  entry=next(e for e in entries if e['id']==id);events=[]
  solution=(root/entry['starter']).with_name('solution.py').read_text();files=starter(alter(solution),launch='python')
  result=run_learning(source=encode(files),image=image,exercise=entry,event=events.append)
  assert result['status']=='failed',(label,result)
+ if label=='wrong_message_type':assert not result['criteria'][1]['passed']
  print(json.dumps(dict(negative=label,**result)),flush=True)
