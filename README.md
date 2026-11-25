@@ -190,3 +190,19 @@ experiments are simulation-only; a lab check runs saved files, not shell history
 No physical worker, firmware, queue, LineRobot or OpenCV changes are required.
 Interactive containers remain on the server, with existing limits. Physical lab
 pose trails remain distinct from a live camera feed or video recording.
+
+## Read-only ROS Inspector
+
+Both the interactive bridge and the bounded lab bridge discover actual ROS nodes
+and topics once per second. The host validates each advisory snapshot before
+exposing it through the existing workspace/attempt API. Snapshots contain up to
+32 topics, 24 nodes and 24 KiB; only the last snapshot is retained, not a rosbag.
+Message previews are limited in depth, array length and string length. Large
+binary sensor streams expose metadata only. Deserialization needs a message type
+installed in the runtime; standard-message learner topics require no registration.
+The observer contributes subscriptions, visible in normal ROS endpoint counts.
+
+Inspector output is untrusted diagnostic data. It cannot change camera-measured
+poses, trusted physical line readings, robot limits, progress grading or confirmed
+stop. The host skips malformed snapshots. `tests/inspector_acceptance.py` checks
+real terminal execution, a custom Float32 topic, graph discovery and node removal.

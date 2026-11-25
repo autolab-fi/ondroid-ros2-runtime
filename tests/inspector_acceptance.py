@@ -25,7 +25,7 @@ if __name__=='__main__':
  with tempfile.TemporaryDirectory() as temp:
   os.environ['ROS2_INPUT_ROOT']=temp;m=Manager();s=None
   try:
-   reply=m.handle(['sessions'],dict(user_id=991,course_id=20,lesson='line_sensor_monitor',source=(root/entry['starter']).read_text(),exercise=entry))
+   reply=m.handle(['sessions'],dict(user_id=991,course_id=20,lesson_id='line_sensor_monitor',source=(root/entry['starter']).read_text(),exercise=entry))
    s=m.sessions[reply['id']]
    import subprocess
    subprocess.run(['docker','exec','-i',s.container,'python3','-c',"from pathlib import Path;import sys;Path('/workspace/ros2_ws/src/probe.py').write_text(sys.stdin.read())"],input=PROBE,text=True,check=True)
