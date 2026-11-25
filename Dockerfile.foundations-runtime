@@ -1,0 +1,2 @@
+FROM ondroid-ros2-runtime:inspector-20261125
+COPY ondroid_ros2 /opt/ondroid_ros2
