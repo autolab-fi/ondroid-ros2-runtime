@@ -34,6 +34,10 @@ class Bridge(Node):
         self.last_command = 0.0
         from inspector import Inspector
         self.inspector = Inspector(self, emit)
+        self.learning = None
+        if os.getenv('ONDROID_ROS2_LEARNING'):
+            from learning_probe import LearningProbe
+            self.learning = LearningProbe(self, emit, json.loads(os.environ['ONDROID_ROS2_LEARNING']))
 
     def command(self, msg):
         # Bound traffic even if a learner publishes faster than the course needs.
@@ -53,6 +57,9 @@ class Bridge(Node):
             emit('demo_distance', data=float(msg.data))
 
     def receive(self, value):
+        if self.learning and value.get('type')=='learning_input':
+            self.learning.receive(value)
+            return
         if value.get('type') == 'line_sensors':
             from line_sensors import analyse
             msg = UInt16MultiArray()

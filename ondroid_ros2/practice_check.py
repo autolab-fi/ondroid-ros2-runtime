@@ -17,6 +17,9 @@ from line_follow import LineFollowProgress
 def main():
     spec = json.loads(os.getenv('ONDROID_ROS2_EXERCISE','{}'))
     checker = spec.get('checker','reach_target_v1')
+    if checker == 'ros_basics_v1':
+        from learning_practice import main as foundations
+        return foundations(spec)
     target = spec.get('target') or [.6,-.185]
     tolerance = spec.get('tolerance',.03)
     timed = LineFollowProgress(spec['duration_seconds']) if checker == 'line_follow_v1' and spec.get('duration_seconds') else None

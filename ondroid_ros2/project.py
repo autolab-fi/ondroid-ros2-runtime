@@ -35,7 +35,7 @@ def decode(source):
     return validate(json.loads(source[len(PREFIX):])) if source.startswith(PREFIX) else None
 
 
-def starter(source, launch=None):
+def starter(source, launch=None, project_files=None):
     files = {
         'run.sh': 'set -e\nsource /opt/ros/jazzy/setup.bash\ncolcon build --symlink-install >&2\nsource install/setup.bash\nexec ros2 run my_robot controller\n',
         'src/my_robot/package.xml': '<?xml version="1.0"?>\n<package format="3"><name>my_robot</name><version>0.0.1</version><description>Student ROS2 project</description><maintainer email="student@example.org">Student</maintainer><license>MIT</license><buildtool_depend>ament_python</buildtool_depend><exec_depend>rclpy</exec_depend><exec_depend>geometry_msgs</exec_depend><exec_depend>std_msgs</exec_depend><export><build_type>ament_python</build_type></export></package>\n',
@@ -47,4 +47,6 @@ def starter(source, launch=None):
     }
     if launch == 'python':
         files['run.sh'] = 'set -e\nsource /opt/ros/jazzy/setup.bash\nexec python3 src/my_robot/my_robot/controller.py\n'
+    if project_files:
+        files.update(project_files)
     return validate(files)

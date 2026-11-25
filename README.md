@@ -206,3 +206,21 @@ Inspector output is untrusted diagnostic data. It cannot change camera-measured
 poses, trusted physical line readings, robot limits, progress grading or confirmed
 stop. The host skips malformed snapshots. `tests/inspector_acceptance.py` checks
 real terminal execution, a custom Float32 topic, graph discovery and node removal.
+
+## Simulation-only foundations
+
+`ros_basics_v1` checks saved answers or actual ROS publication/subscription
+behavior. Quiz criteria read `src/answers.json`. Publisher checks require a real
+publishing endpoint and repeated Float32 values; subscriber checks send random
+Int32 inputs and require distinct correct replies through ROS. Student stdout is
+only a log. These software checks may inspect the learner ROS graph, but never
+use it as evidence for physical robot motion. The existing physical graders and
+safety paths remain separate; the API rejects lab mode for foundations.
+
+`learning.py` owns the criteria and verdict; `learning_probe.py` adapts ROS
+messages inside the sandbox. `learning_practice.py` provides the same criteria
+from `check-in-sim` without a Docker socket. It starts and cleans up a temporary
+project process group in the personal workspace. The native simulation button
+checks a frozen saved project in a fresh isolated container and records an attempt.
+`project_files` initializes additional validated source files such as answers or
+run.sh only for a new lesson backup; existing learner edits remain intact.

@@ -47,7 +47,7 @@ class Session:
         # Retain the original pilot backup name; other exercises have separate sources.
         suffix = '' if lesson == 'reach_target' else '-'+lesson
         self.backup = manager.root/f'{uid}-{cid}{suffix}.json'
-        files = decode(self.backup.read_text()) if self.backup.exists() else starter(source, launch=(exercise or {}).get('launch'))
+        files = decode(self.backup.read_text()) if self.backup.exists() else starter(source, launch=(exercise or {}).get('launch'), project_files=(exercise or {}).get('project_files'))
         # Upgrade only an exact, unmodified reference; preserve all learner edits.
         controller = 'src/my_robot/my_robot/controller.py'
         prior = (exercise or {}).get('previous_starter_sha256', [])
@@ -55,6 +55,7 @@ class Session:
             files[controller] = source
         self.process = subprocess.Popen(['docker', 'run', '--rm', '--init', '-i', '--name', self.container,
             '--env','ONDROID_ROS2_EXERCISE='+json.dumps(exercise or {}),
+            '--env','ONDROID_ROS2_EDIT_FILE='+('src/answers.json' if (exercise or {}).get('learning',{}).get('kind')=='answers' else 'run.sh' if (exercise or {}).get('learning',{}).get('kind')=='cli_publisher' else 'src/my_robot/my_robot/controller.py'),
             '--label', 'ondroid.ros2.workspace='+manager.identity, '--network', 'none', '--read-only', '--cap-drop', 'ALL',
             '--security-opt', 'no-new-privileges', '--user', '65534:65534', '--cpus', '1',
             '--memory', '768m', '--memory-swap', '768m', '--pids-limit', '128',

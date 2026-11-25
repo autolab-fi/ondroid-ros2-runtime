@@ -2,4 +2,4 @@ source /opt/ros/jazzy/setup.bash
 export HOME=/tmp TERM=xterm-256color
 export PS1='student@ros2:\w\$ '
 cd /workspace/ros2_ws
-printf '\nROS2 workspace · simulator connected\nEdit: nano src/my_robot/my_robot/controller.py\nPractice: check-in-sim\nManual run: bash run.sh (Ctrl+C stops it)\nInspect from another terminal: ros2 topic echo /robot/pose\nSave files before Check in lab. Only src/ and run.sh are submitted.\n\n'
+printf '\nROS2 workspace · simulator connected\nEdit: nano %s\nPractice: check-in-sim\nManual run: bash run.sh (Ctrl+C stops it)\nInspect from another terminal: ros2 topic echo /robot/pose\nSave files before checking. Only src/ and run.sh are submitted.\n\n' "${ONDROID_ROS2_EDIT_FILE:-src/my_robot/my_robot/controller.py}"

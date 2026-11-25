@@ -26,7 +26,7 @@ class SandboxCleanupError(RuntimeError):
 
 
 class Sandbox:
-    def __init__(self, source, image, *, docker='docker'):
+    def __init__(self, source, image, *, docker='docker', learning=None):
         self.name = 'ondroid-ros2-' + uuid.uuid4().hex
         self.root = tempfile.TemporaryDirectory(prefix='ondroid-ros2-', dir=os.environ.get('ROS2_INPUT_ROOT'))
         os.chmod(self.root.name, 0o755)
@@ -47,6 +47,7 @@ class Sandbox:
         self.events = queue.Queue(maxsize=256)
         self.process = subprocess.Popen([
             docker, 'run', '--rm', '-i', '--name', self.name,
+            *(['--env','ONDROID_ROS2_LEARNING='+json.dumps(learning)] if learning else []),
             '--network', 'none', '--read-only', '--cap-drop', 'ALL',
             '--security-opt', 'no-new-privileges', '--user', '65534:65534',
             '--cpus', '1', '--memory', '384m', '--memory-swap', '384m',
@@ -125,6 +126,11 @@ def run_target(*, source, image, sample, drive, stop, event, cancelled=lambda: F
     """
     spec = exercise or {}
     checker = spec.get('checker', 'reach_target_v1')
+    if checker == 'ros_basics_v1':
+        try:from .learning import run_learning
+        except ImportError:from learning import run_learning
+        try:return run_learning(source=source,image=image,event=event,cancelled=cancelled,exercise=spec)
+        finally:stop()
     if checker not in ('reach_target_v1','line_sensor_observe_v1','line_follow_v1'):
         raise ValueError('Unknown ROS exercise checker')
     target = spec.get('target') or target

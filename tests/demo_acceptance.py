@@ -8,7 +8,7 @@ from ondroid_ros2.runner import run_target
 from ondroid_ros2.simulation import Simulation
 root=Path(sys.argv[2]);manifest=json.loads((root/'manifest.json').read_text())
 for entry in manifest['lessons']:
-    if entry['id']=='ros_sandbox':continue
+    if entry['id']=='ros_sandbox' or entry['checker']=='ros_basics_v1':continue
     sim=Simulation();events=[]
     result=run_target(source=encode(starter((root/entry['starter']).read_text(),launch=entry.get('launch'))),image=sys.argv[1],
         sample=sim.sample,drive=sim.drive,stop=sim.stop,event=events.append,exercise=entry)
